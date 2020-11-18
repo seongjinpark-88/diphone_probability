@@ -1,22 +1,22 @@
 '''
 Add probability to existing file
-argv[1]: prob_dictionary_v2.pk
-argv[2]: conversion.txt
-argv[3]: WarnerMcQueenCutler_RawData_withoutFL.txt
+argv[1]: conversion.txt
+argv[2]: WarnerMcQueenCutler_RawData_withoutFL.txt
 '''
 
 import sys
 import pickle
+import dill
 from collections import defaultdict
 
-prob_dict = pickle.load(open(argv[1], 'rb'))
+prob_dict = pickle.load(open("../data/prob_data/prob_dictionary_v2.pk", 'rb'))
 
 mono_dict = prob_dict['monophone']
 diphone_dict = prob_dict['diphone']
 
 ### Create dictionary to convert response to diphone, and be to diphone
 
-with open(sys.argv[2], 'r') as f:
+with open(sys.argv[1], 'r') as f:
 	data = f.readlines()
 
 conv = {}
@@ -29,12 +29,15 @@ for i in range(1, len(data)):
 	ipa, cmu, be, diphone, resp, voc, man = line.split("\t")
 
 	if be != "":
-		conv[diphone] = be
-		r2d[resp] = be
+		conv[be] = diphone
+		r2d[resp] = diphone
 
 	feat[diphone] = defaultdict(dict)
 	feat[diphone]["voc"] = voc
 	feat[diphone]["man"] = man
+
+r2d["X"] = "X"
+r2d["x"] = "x"
 
 ### Create dictionary for probabilities 
 prob = {}
@@ -48,20 +51,93 @@ for k in sorted(list(mono_dict.keys())):
 	prob[k] = monoph_prob
 
 for k in sorted(list(diphone_dict.keys())):
-	seg1, seg2 = k.split("-")
-	diphone_prob = diphone_dict[k] / diphone_dict['total_diphone']
-	seg1 = conv[seg1]
-	seg2 = conv[seg2]
-	diphone_key = "%s-%s" % (seg1, seg2)
-	prob[diphone_key] = diphone_prob / prob[seg1]
+	# print(k)
+	k_check = k.replace("-", "")
+	if (k_check.islower()) and (k != "total_diphone"):
+			seg1, seg2 = k.split("-")
+			diphone_prob = diphone_dict[k] / diphone_dict['total_diphone']
+			try:
+				seg1 = conv[seg1]
+				seg2 = conv[seg2]
+				diphone_key = "%s-%s" % (seg1, seg2)
+				prob[diphone_key] = diphone_prob / prob[seg1]
+			except:
+				next
+
+# print(prob)
+
+### Load response data
+response_keys = dill.load(open('../data/prob_data/keys.pk', 'rb'))
+monophone_keys = response_keys['monophone']
+diphone_keys = response_keys['diphone']
+
+response_data = dill.load(open('../data/prob_data/data.pk', 'rb'))
+monophone_gate_list = response_data['monophone']
+diphone_gate_list = response_data['diphone']
 
 
 ### Working on datafile
-
-with open(sys.argv[3], "r") as f:
-	data = f.readlines()
-
-header = data[0].rstrip()
-
 overall_header = "Gate\tseg2\toverallProb\trespProb\tVOC\tMAN\n"
 transit_header = "Gate\tseg1\tseg2\tdiphone\trespFreq\ttranProb\trespProb\tVOC\tMAN\n"
+
+#### Monophone datafile
+
+with open("../data/overallProbBuckeye.txt", "w") as outfile:
+	outfile.write(overall_header)
+
+	# Loop through gates
+	for gate in monophone_keys.keys():
+
+		# Loop through second segment
+		for ans2 in monophone_keys[gate].keys():
+			gate_idx = int(gate[-1]) - 1
+			gate_dict = monophone_gate_list[gate_idx]
+			seg2 = r2d[ans2]
+			try: 
+				overall_prob = prob[seg2]
+			except:
+				overall_prob = 1 / mono_dict['total_monophone']
+
+			resp_prob = gate_dict[ans2] / gate_dict['total_mono']
+
+			if resp_prob <= 0:
+				resp_prob = 1 / gate_dict['total_mono']
+
+			# except:
+			# 	resp_prob = 1 / gate_dict['total_mono']
+			result = "%s\t%s\t%s\t%s\t%s\t%s\n" % (gate, seg2, overall_prob, resp_prob, feat[seg2]['voc'], feat[seg2]['man'])
+			outfile.write(result)
+
+# from pprint import pprint
+# pprint(diphone_keys["g1"])
+# pprint(diphone_gate_list[0]['b'])
+# exit()
+
+with open("../data/transitionalProbBuckeye.txt", "w") as outfile:
+	outfile.write(transit_header)
+	for gate in diphone_keys.keys():
+		for diphone in diphone_keys[gate].keys():
+			ans1, ans2 = diphone.split("-")
+			gate_idx = int(gate[-1]) - 1
+			gate_dict = diphone_gate_list[gate_idx]
+			seg1 = r2d[ans1]
+			for ans2 in list(gate_dict[seg1].keys()):
+				if ans2 != 'total':
+					# print(gate, seg1, ans1, ans2)
+					if ans2 in r2d:
+						seg2 = r2d[ans2]
+						diphone_seq = "%s-%s" % (seg1, seg2)
+						try:
+							transit_prob = prob[diphone_seq]
+						except:
+							transit_prob = (1 / diphone_dict['total_diphone']) / prob[seg1]
+						try:
+							resp_prob = gate_dict[seg1][seg2] / gate_dict[seg1]['total']
+						except:
+							resp_prob = 1 / gate_dict[seg1]['total']
+
+						if resp_prob <= 0:
+							resp_prob = 1 / gate_dict[seg1]['total']
+
+						result = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" % (gate, seg1, seg2, diphone_seq, gate_dict[seg1][seg2], transit_prob, resp_prob, feat[seg2]['voc'], feat[seg2]['man'])
+						outfile.write(result)
