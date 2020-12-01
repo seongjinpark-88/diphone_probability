@@ -37,7 +37,7 @@ for i in range(1, len(data)):
 	feat[diphone]["man"] = man
 
 r2d["X"] = "X"
-r2d["x"] = "x"
+r2d["x"] = "^"
 
 ### Create dictionary for probabilities 
 prob = {}
@@ -48,7 +48,7 @@ for k in sorted(list(mono_dict.keys())):
 	if k in conv:
 		k = conv[k]
 
-	prob[k] = monoph_prob
+		prob[k] = monoph_prob
 
 for k in sorted(list(diphone_dict.keys())):
 	# print(k)
@@ -88,6 +88,7 @@ with open("../data/overallProbBuckeye.txt", "w") as outfile:
 	# Loop through gates
 	for gate in monophone_keys.keys():
 
+		tmp_dict = defaultdict(dict)
 		# Loop through second segment
 		for ans2 in monophone_keys[gate].keys():
 			gate_idx = int(gate[-1]) - 1
@@ -103,25 +104,37 @@ with open("../data/overallProbBuckeye.txt", "w") as outfile:
 			if resp_prob <= 0:
 				resp_prob = 1 / gate_dict['total_mono']
 
+			tmp_dict[seg2]['prob'] = overall_prob
+
+			try:
+				tmp_dict[seg2]['resp'] += resp_prob
+			except:
+				tmp_dict[seg2]['resp'] = resp_prob
 			# except:
 			# 	resp_prob = 1 / gate_dict['total_mono']
-			result = "%s\t%s\t%s\t%s\t%s\t%s\n" % (gate, seg2, overall_prob, resp_prob, feat[seg2]['voc'], feat[seg2]['man'])
+
+		for seg2 in list(tmp_dict.keys()):
+			result = "%s\t%s\t%s\t%s\t%s\t%s\n" % (gate, seg2, tmp_dict[seg2]['prob'], tmp_dict[seg2]['resp'], feat[seg2]['voc'], feat[seg2]['man'])
 			outfile.write(result)
 
 # from pprint import pprint
 # pprint(diphone_keys["g1"])
 # pprint(diphone_gate_list[0]['b'])
 # exit()
+# print(r2d["ch"])
+# exit()
 
 with open("../data/transitionalProbBuckeye.txt", "w") as outfile:
 	outfile.write(transit_header)
 	for gate in diphone_keys.keys():
 		for diphone in diphone_keys[gate].keys():
+			# print(diphone)
 			ans1, ans2 = diphone.split("-")
 			gate_idx = int(gate[-1]) - 1
 			gate_dict = diphone_gate_list[gate_idx]
 			seg1 = r2d[ans1]
-			for ans2 in list(gate_dict[seg1].keys()):
+			# print(seg1, gate_dict[ans1])
+			for ans2 in list(gate_dict[ans1].keys()):
 				if ans2 != 'total':
 					# print(gate, seg1, ans1, ans2)
 					if ans2 in r2d:
@@ -132,12 +145,14 @@ with open("../data/transitionalProbBuckeye.txt", "w") as outfile:
 						except:
 							transit_prob = (1 / diphone_dict['total_diphone']) / prob[seg1]
 						try:
-							resp_prob = gate_dict[seg1][seg2] / gate_dict[seg1]['total']
+							resp_prob = gate_dict[ans1][ans2] / gate_dict[ans1]['total']
 						except:
-							resp_prob = 1 / gate_dict[seg1]['total']
+							resp_prob = 1 / gate_dict[ans1]['total']
 
 						if resp_prob <= 0:
-							resp_prob = 1 / gate_dict[seg1]['total']
+							resp_prob = 1 / gate_dict[ans1]['total']
 
-						result = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" % (gate, seg1, seg2, diphone_seq, gate_dict[seg1][seg2], transit_prob, resp_prob, feat[seg2]['voc'], feat[seg2]['man'])
+						result = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" % (gate, seg1, seg2, diphone_seq, gate_dict[ans1][ans2], transit_prob, resp_prob, feat[seg2]['voc'], feat[seg2]['man'])
+						# print(result)
+						# exit()
 						outfile.write(result)

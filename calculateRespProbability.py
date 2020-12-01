@@ -67,7 +67,7 @@ for i in range(1, len(data)):
 		mono_gate_diphs[gate_key][ans2] += 1
 		
 		## 5.2 diphone
-		if int(seg1Acc) == 1:
+		if ans1 == resp1:
 			diph_key = "%s-%s" % (ans1, ans2)
 			di_gate_dicts[dict_idx][resp1][resp2] += 1
 			di_gate_dicts[dict_idx][resp1]['total'] += 1
@@ -78,6 +78,10 @@ for i in range(1, len(data)):
 diphone_keys = {}
 diphone_keys['monophone'] = mono_gate_diphs
 diphone_keys['diphone'] = di_gate_diphs
+
+from pprint import pprint
+pprint(di_gate_diphs["g2"])
+pprint(di_gate_dicts[0])
 	
 diphone_data = {}
 diphone_data['monophone'] = mono_gate_dicts
